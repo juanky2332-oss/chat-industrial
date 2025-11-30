@@ -3,8 +3,11 @@ import { Header } from './components/Header';
 import { InputArea } from './components/InputArea';
 import { ResultsView } from './components/ResultsView';
 import { AnalysisResult, FileUpload } from './types';
-import { analyzeIndustrialProduct } from './services/geminiService';
 import { AlertTriangle, Terminal } from 'lucide-react';
+
+// --- CONFIGURACIÓN DEL CEREBRO (n8n) ---
+const N8N_WEBHOOK_URL = 'https://personal-n8n.t9gkry.easypanel.host/webhook/chatbot-transformaconia'; 
+// ---------------------------------------
 
 const App: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -12,15 +15,68 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const handleAnalysis = async (text: string, files: FileUpload[]) => {
+    // Validación básica
+    if (!text && files.length === 0) return;
+
     setIsAnalyzing(true);
     setError(null);
     setData(null);
 
     try {
-      const result = await analyzeIndustrialProduct(text, files);
-      setData(result);
+      // 1. Preparar el mensaje para n8n
+      // (Nota: Si envías archivos, n8n necesitaría lógica extra, por ahora enviamos el texto)
+      const payload = {
+        question: text || "Analiza este producto (consulta sin texto)",
+        thread_id: 'web_client_' + Math.random().toString(36).substr(2, 9)
+      };
+
+      // 2. Llamar a n8n
+      const response = await fetch(N8N_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error de conexión con el Experto (Status: ${response.status})`);
+      }
+
+      const responseData = await response.json();
+      
+      // 3. Procesar respuesta de n8n
+      // n8n devuelve { response: "..." } o { output: "..." }
+      // El texto puede ser JSON o texto plano.
+      const rawText = responseData.response || responseData.output || JSON.stringify(responseData);
+      
+      let parsedResult: AnalysisResult;
+
+      // Intentamos detectar si el experto devolvió JSON válido
+      try {
+          // Buscamos el primer '{' y el último '}' para extraer JSON limpio
+          const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+              parsedResult = JSON.parse(jsonMatch[0]);
+          } else {
+              throw new Error("No es JSON");
+          }
+      } catch (e) {
+          // Si no es JSON, construimos un resultado manual para mostrar el texto
+          parsedResult = {
+              productDetails: {
+                  productName: "Consulta General",
+                  referenceCode: "GEN-001",
+                  rawTableData: [{ specification: "Respuesta", description: rawText }]
+              },
+              variantsNarrative: rawText,
+              comparisonTable: [],
+              recommendations: "Consulta procesada por el Asistente Transformaconia."
+          };
+      }
+
+      setData(parsedResult);
+
     } catch (err) {
-      setError("Error crítico en análisis. Verifique credenciales o conectividad de red.");
+      setError("Error de comunicación con el servidor. Asegúrate de que n8n permite CORS (*).");
       console.error(err);
     } finally {
       setIsAnalyzing(false);
@@ -45,7 +101,7 @@ const App: React.FC = () => {
           <div className="mb-12 text-center space-y-4">
              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900/50 border border-slate-800 text-xs font-mono text-slate-400">
                 <Terminal size={12} />
-                <span>v2.0 :: ENGINE_ONLINE</span>
+                <span>v2.1 :: N8N_CONNECTED</span>
              </div>
              <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
                Identificación Industrial <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">Inteligente</span>
@@ -65,7 +121,7 @@ const App: React.FC = () => {
             <div className="bg-red-950/20 border border-red-500/30 p-4 mb-8 rounded-lg flex items-start gap-3 backdrop-blur-sm animate-shake">
               <AlertTriangle className="text-red-500 mt-0.5" size={20} />
               <div>
-                <h3 className="font-bold text-red-400 font-mono">ERROR DE PROCESAMIENTO</h3>
+                <h3 className="font-bold text-red-400 font-mono">ERROR DE CONEXIÓN</h3>
                 <p className="text-red-300/80 text-sm font-mono mt-1">{error}</p>
               </div>
             </div>
@@ -81,3 +137,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+</tsx>

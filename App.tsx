@@ -4,7 +4,7 @@ import { Header } from './components/Header';
 import { InputArea } from './components/InputArea';
 import { ResultsView } from './components/ResultsView';
 import { AnalysisResult, FileUpload } from './types';
-import { AlertTriangle, Terminal } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 // --- CONFIGURACIÓN DEL CEREBRO (n8n) ---
 const N8N_WEBHOOK_URL = 'https://personal-n8n.t9gkry.easypanel.host/webhook/chatbot-transformaconia'; 
@@ -42,8 +42,25 @@ const App: React.FC = () => {
 
       const responseData = await response.json();
       
-      // 3. Procesar respuesta de n8n
-      const rawText = responseData.response || responseData.output || JSON.stringify(responseData);
+      // 3. Procesar respuesta de n8n (Super Parser)
+      let rawText = responseData.response || responseData.output;
+      
+      // Si viene undefined, igual es que n8n devolvió el objeto directo
+      if (!rawText && typeof responseData === 'object') {
+         rawText = JSON.stringify(responseData);
+      }
+
+      // Limpieza de doble stringify (si n8n mandó "\"Hola\"")
+      if (typeof rawText === 'string') {
+          if (rawText.startsWith('"') && rawText.endsWith('"')) {
+              try { rawText = JSON.parse(rawText); } catch (e) {}
+          }
+      }
+      
+      // Si después de limpiar es un objeto, lo convertimos a string para buscar el bloque JSON
+      if (typeof rawText === 'object') {
+          rawText = JSON.stringify(rawText);
+      }
       
       let parsedResult: AnalysisResult;
 
@@ -53,10 +70,10 @@ const App: React.FC = () => {
           if (jsonMatch) {
               parsedResult = JSON.parse(jsonMatch[0]);
           } else {
-              throw new Error("No es JSON");
+              throw new Error("No es JSON estructurado");
           }
       } catch (e) {
-          // Si no es JSON, construimos un resultado manual para mostrar el texto
+          // Fallback elegante si no es JSON
           parsedResult = {
               productDetails: {
                   productName: "Consulta General",
@@ -65,14 +82,14 @@ const App: React.FC = () => {
               },
               variantsNarrative: rawText,
               comparisonTable: [],
-              recommendations: "Consulta procesada por el Asistente Transformaconia."
+              recommendations: "Consulta procesada por Xperto IndustrIAL."
           };
       }
 
       setData(parsedResult);
 
     } catch (err) {
-      setError("Error de comunicación con el servidor. Asegúrate de que n8n permite CORS (*).");
+      setError("No se pudo conectar con el servidor de análisis. Intenta de nuevo.");
       console.error(err);
     } finally {
       setIsAnalyzing(false);
@@ -91,19 +108,15 @@ const App: React.FC = () => {
       <div className="relative z-10">
         <Header />
         
-        <main className="container mx-auto px-4 py-12 max-w-6xl">
+        <main className="container mx-auto px-4 py-12 max-w-5xl">
           
-          {/* Intro Banner */}
-          <div className="mb-12 text-center space-y-4">
-             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900/50 border border-slate-800 text-xs font-mono text-slate-400">
-                <Terminal size={12} />
-                <span>v2.1 :: N8N_CONNECTED</span>
-             </div>
-             <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
-               Identificación Industrial <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">Inteligente</span>
+          {/* Hero Section Limpio */}
+          <div className="mb-16 text-center space-y-6">
+             <h2 className="text-5xl md:text-6xl font-extrabold text-white tracking-tight leading-tight">
+               Xperto <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">IndustrIAL</span>
              </h2>
-             <p className="text-slate-400 max-w-2xl mx-auto text-lg">
-               Sube fichas, esquemas o imágenes. El sistema decodifica especificaciones, compara referencias cruzadas y genera documentación técnica experta.
+             <p className="text-slate-400 max-w-2xl mx-auto text-xl font-light">
+               Pregunta, sube fotos o archivos para cualquier consulta técnica que quieras hacer.
              </p>
           </div>
 
@@ -117,8 +130,8 @@ const App: React.FC = () => {
             <div className="bg-red-950/20 border border-red-500/30 p-4 mb-8 rounded-lg flex items-start gap-3 backdrop-blur-sm animate-shake">
               <AlertTriangle className="text-red-500 mt-0.5" size={20} />
               <div>
-                <h3 className="font-bold text-red-400 font-mono">ERROR DE CONEXIÓN</h3>
-                <p className="text-red-300/80 text-sm font-mono mt-1">{error}</p>
+                <h3 className="font-bold text-red-400 font-mono">ERROR</h3>
+                <p className="text-red-300/80 text-sm mt-1">{error}</p>
               </div>
             </div>
           )}

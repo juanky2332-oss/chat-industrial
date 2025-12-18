@@ -1,15 +1,20 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+// RUTA CORREGIDA: Apunta a la carpeta components
+import ChatWidget from './components/ChatWidget';
 
 const rootElement = document.getElementById('root');
+
 if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
+  throw new Error("No se encontró el elemento root en index.html");
 }
 
 const root = ReactDOM.createRoot(rootElement);
+
 root.render(
   <React.StrictMode>
-    <App />
+    <div className="relative min-h-screen w-full flex items-end justify-end p-6">
+       <ChatWidget />
+    </div>
   </React.StrictMode>
 );
